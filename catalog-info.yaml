@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: veryeasy-dev
+  title: veryeasy.dev
+  description: Personal branding website sharing my IT career knowledge and projects
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    github.com/project-slug: your-github-username/veryeasy.dev
+  links:
+    - url: https://veryeasy.dev
+      title: Live Website
+      icon: website
+spec:
+  type: website
+  lifecycle: production
+  owner: user:default/you
+  system: personal-branding
