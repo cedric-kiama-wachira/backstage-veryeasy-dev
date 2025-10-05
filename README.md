@@ -1,403 +1,353 @@
-# Strapi K8s Deployment Guide - Complete Setup
+# Strapi K8s - Quick Reference Card
 
-This guide will help you deploy a production-ready Strapi v5 instance on your Kubernetes cluster.
-
-## 🎯 What You're Building
-
-A complete, enterprise-grade Strapi CMS deployment with:
-- ✅ Stateful PostgreSQL with Ceph storage
-- ✅ Scalable Strapi deployment (2 replicas)
-- ✅ Local container registry
-- ✅ Proper secrets management
-- ✅ Health checks and resource limits
-- ✅ Ingress for direct IP access
-
-## 📋 Prerequisites
-
-### On Your Control/Management Machine:
-- kubectl configured and connected to your cluster
-- Docker installed and running
-- Node.js 18+ and npm (for building Strapi)
-- Internet access (for initial dependencies)
-
-### Verify Your Cluster:
-```bash
-kubectl get nodes
-kubectl get storageclass  # Should show ceph-rbd
-kubectl get ingressclass  # Should show nginx
-```
-
-## 🚀 Quick Start (30 Minutes)
-
-### Step 1: Download All Files
-
-Save all the provided artifacts in a single directory:
-```
-strapi-k8s/
-├── 00-DEPLOYMENT-GUIDE.md          # This file
-├── 01-local-registry.yaml          # Container registry
-├── 02-postgresql.yaml              # Database
-├── 03-Dockerfile                   # Strapi container
-├── 04-strapi-deployment.yaml       # Strapi app
-├── 05-init-strapi-project.sh       # Project initialization
-└── 06-deploy.sh                    # Automated deployment
-```
-
-### Step 2: Initialize Strapi Project
+## 🚀 Deploy in 3 Commands
 
 ```bash
-# Make scripts executable
-chmod +x 05-init-strapi-project.sh 06-deploy.sh
-
-# Create a fresh Strapi v5 project
+# 1. Initialize project
 bash 05-init-strapi-project.sh
-```
 
-This creates a `strapi-demo` directory with:
-- Strapi v5 application
-- PostgreSQL configuration
-- Production-ready configs
-- TypeScript support
-
-### Step 3: Configure Docker for Insecure Registry
-
-Edit `/etc/docker/daemon.json` (create if doesn't exist):
-```json
-{
-  "insecure-registries": ["vts-worker-01-stg-srv:30500"]
-}
-```
-
-Restart Docker:
-```bash
+# 2. Configure Docker for local registry
+sudo nano /etc/docker/daemon.json
+# Add: {"insecure-registries": ["vts-worker-01-stg-srv:30500"]}
 sudo systemctl restart docker
-```
 
-**Why?** The local registry doesn't have SSL, so Docker needs to trust it.
-
-### Step 4: Deploy Everything
-
-```bash
+# 3. Deploy everything
 bash 06-deploy.sh
 ```
 
-This script will:
-1. ✅ Deploy local container registry
-2. ✅ Deploy PostgreSQL with persistent storage
-3. ✅ Build Strapi Docker image
-4. ✅ Push image to local registry
-5. ✅ Deploy Strapi to K8s
-6. ✅ Display access information
+## 🌐 Access URLs
 
-## 🔍 Manual Step-by-Step (If You Prefer)
+```
+Admin Panel:  http://<HAPROXY_IP>/admin
+API Endpoint: http://<HAPROXY_IP>/api
+Health Check: http://<HAPROXY_IP>/_health
+API Docs:     http://<HAPROXY_IP>/documentation
+```
 
-### 1. Deploy Container Registry
+## 📊 Essential Commands
 
+### View Status
 ```bash
-kubectl apply -f 01-local-registry.yaml
-
-# Wait for registry
-kubectl wait --for=condition=ready pod -l app=docker-registry -n container-registry --timeout=120s
-
-# Verify registry is accessible
-curl http://vts-worker-01-stg-srv:30500/v2/_catalog
-```
-
-### 2. Create Strapi Namespace & Deploy PostgreSQL
-
-```bash
-# Create namespace
-kubectl create namespace strapi-staging
-
-# Deploy PostgreSQL
-kubectl apply -f 02-postgresql.yaml
-
-# Wait for PostgreSQL
-kubectl wait --for=condition=ready pod -l app=postgres -n strapi-staging --timeout=300s
-
-# Verify database
-kubectl exec -it statefulset/postgres -n strapi-staging -- psql -U strapi -c "\l"
-```
-
-### 3. Build and Push Strapi Image
-
-```bash
-# Copy Dockerfile to project
-cp 03-Dockerfile strapi-demo/Dockerfile
-
-# Build image
-cd strapi-demo
-docker build -t vts-worker-01-stg-srv:30500/strapi:latest .
-
-# Push to registry
-docker push vts-worker-01-stg-srv:30500/strapi:latest
-
-cd ..
-```
-
-### 4. Deploy Strapi Application
-
-```bash
-kubectl apply -f 04-strapi-deployment.yaml
-
-# Watch deployment
-kubectl get pods -n strapi-staging -w
-
-# Check logs
-kubectl logs -f deployment/strapi -n strapi-staging
-```
-
-## 🌐 Accessing Strapi
-
-### Find Your HAProxy IP:
-```bash
-# On HAProxy server
-hostname -I | awk '{print $1}'
-```
-
-### Access Strapi Admin:
-```
-http://<HAPROXY_IP>/admin
-```
-
-On first access, you'll be prompted to create an admin account.
-
-## 🔧 Useful Commands
-
-### View All Resources:
-```bash
+# All resources
 kubectl get all -n strapi-staging
+
+# Just pods
+kubectl get pods -n strapi-staging
+
+# Storage
 kubectl get pvc -n strapi-staging
+
+# Ingress
 kubectl get ingress -n strapi-staging
 ```
 
-### Check Logs:
+### Logs
 ```bash
-# Strapi logs
+# Strapi logs (follow)
 kubectl logs -f deployment/strapi -n strapi-staging
 
-# PostgreSQL logs
+# Database logs
 kubectl logs -f statefulset/postgres -n strapi-staging
 
-# Follow specific pod
+# Specific pod
 kubectl logs -f <pod-name> -n strapi-staging
+
+# Previous crashed pod
+kubectl logs <pod-name> -n strapi-staging --previous
 ```
 
-### Shell Access:
+### Shell Access
 ```bash
 # Strapi container
 kubectl exec -it deployment/strapi -n strapi-staging -- sh
 
-# PostgreSQL container
+# Database
 kubectl exec -it statefulset/postgres -n strapi-staging -- psql -U strapi
 ```
 
-### Scale Strapi:
+### Restart Services
 ```bash
-# Scale to 3 replicas
+# Restart Strapi
+kubectl rollout restart deployment/strapi -n strapi-staging
+
+# Restart PostgreSQL (careful!)
+kubectl rollout restart statefulset/postgres -n strapi-staging
+```
+
+### Scale
+```bash
+# Scale up
 kubectl scale deployment strapi -n strapi-staging --replicas=3
 
-# Scale to 1 replica
+# Scale down
 kubectl scale deployment strapi -n strapi-staging --replicas=1
 ```
 
-### Restart Strapi:
-```bash
-kubectl rollout restart deployment/strapi -n strapi-staging
-```
-
-### Update Strapi Image:
+### Update Image
 ```bash
 # After building new image
-kubectl set image deployment/strapi strapi=vts-worker-01-stg-srv:30500/strapi:latest -n strapi-staging
-
-# Or force pull
+docker build -t vts-worker-01-stg-srv:30500/strapi:latest strapi-demo/
+docker push vts-worker-01-stg-srv:30500/strapi:latest
 kubectl rollout restart deployment/strapi -n strapi-staging
 ```
 
-## 🔐 Security Notes
+## 🔧 Database Operations
 
-### Change Default Passwords:
-
-1. **PostgreSQL Password:**
+### Connect to Database
 ```bash
-kubectl edit secret postgres-secret -n strapi-staging
-# Change POSTGRES_PASSWORD (base64 encoded)
+kubectl exec -it statefulset/postgres -n strapi-staging -- psql -U strapi
 ```
 
-2. **Strapi Secrets:**
-```bash
-kubectl edit secret strapi-secret -n strapi-staging
-# Generate new secrets with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+### Common SQL Commands
+```sql
+-- List databases
+\l
+
+-- Connect to strapi database
+\c strapi
+
+-- List tables
+\dt
+
+-- View table structure
+\d <table_name>
+
+-- Count records
+SELECT COUNT(*) FROM <table_name>;
+
+-- Exit
+\q
 ```
 
-3. **Recommended: Use External Secrets Operator or Sealed Secrets in production**
+### Backup Database
+```bash
+# Backup to file
+kubectl exec statefulset/postgres -n strapi-staging -- \
+  pg_dump -U strapi strapi > backup-$(date +%Y%m%d-%H%M%S).sql
 
-## 📊 Monitoring & Health Checks
+# Restore from file
+cat backup.sql | kubectl exec -i statefulset/postgres -n strapi-staging -- \
+  psql -U strapi strapi
+```
 
-### Check Pod Health:
+## 🐛 Quick Troubleshooting
+
+### Pod Won't Start
 ```bash
 kubectl describe pod <pod-name> -n strapi-staging
-```
-
-### View Events:
-```bash
+kubectl logs <pod-name> -n strapi-staging
 kubectl get events -n strapi-staging --sort-by='.lastTimestamp'
 ```
 
-### Resource Usage:
+### Can't Access Strapi
 ```bash
-kubectl top pods -n strapi-staging
-kubectl top nodes
-```
+# Check ingress
+kubectl describe ingress strapi-ingress -n strapi-staging
 
-### Health Endpoints:
-- Strapi: `http://<HAPROXY_IP>/_health`
-- Admin: `http://<HAPROXY_IP>/admin`
-- API: `http://<HAPROXY_IP>/api`
+# Check service
+kubectl get svc strapi-service -n strapi-staging
 
-## 🐛 Troubleshooting
-
-### Strapi Pod Won't Start
-
-```bash
-# Check pod status
-kubectl describe pod -l app=strapi -n strapi-staging
-
-# Common issues:
-# 1. Database not ready - check postgres logs
-# 2. Image pull error - verify registry accessibility
-# 3. Resource constraints - check node resources
+# Port forward (temporary access)
+kubectl port-forward svc/strapi-service 1337:1337 -n strapi-staging
+# Then access: http://localhost:1337/admin
 ```
 
 ### Database Connection Issues
-
 ```bash
-# Test database connectivity
-kubectl run -it --rm debug --image=postgres:16-alpine --restart=Never -n strapi-staging -- \
-  psql -h postgres-service -U strapi -d strapi
+# Check if database pod is running
+kubectl get pods -l app=postgres -n strapi-staging
 
-# Check database service
-kubectl get svc postgres-service -n strapi-staging
+# Test connection from Strapi pod
+kubectl exec -it deployment/strapi -n strapi-staging -- \
+  nc -zv postgres-service 5432
 ```
 
-### Image Build Failures
-
+### Image Pull Errors
 ```bash
-# Build with verbose output
-docker build --no-cache --progress=plain -t vts-worker-01-stg-srv:30500/strapi:latest .
-
-# Check Docker daemon logs
-sudo journalctl -u docker -f
-```
-
-### Registry Issues
-
-```bash
-# Verify registry pod
+# Check registry
 kubectl get pods -n container-registry
 
-# Check registry logs
-kubectl logs -l app=docker-registry -n container-registry
+# Verify image exists
+curl http://vts-worker-01-stg-srv:30500/v2/strapi/tags/list
 
-# Test registry access
+# Verify Docker daemon config
+cat /etc/docker/daemon.json
+sudo systemctl status docker
+```
+
+## 📈 Performance & Monitoring
+
+### Resource Usage
+```bash
+# Pod resources
+kubectl top pods -n strapi-staging
+
+# Node resources
+kubectl top nodes
+
+# Detailed pod info
+kubectl describe pod <pod-name> -n strapi-staging | grep -A 5 "Requests"
+```
+
+### Watch Resources
+```bash
+# Watch pods
+watch kubectl get pods -n strapi-staging
+
+# Watch events
+kubectl get events -n strapi-staging -w
+```
+
+## 🔐 Secrets Management
+
+### View Secrets (Encoded)
+```bash
+kubectl get secrets -n strapi-staging
+kubectl describe secret strapi-secret -n strapi-staging
+```
+
+### Edit Secrets
+```bash
+# Edit Strapi secrets
+kubectl edit secret strapi-secret -n strapi-staging
+
+# Edit database secrets
+kubectl edit secret postgres-secret -n strapi-staging
+```
+
+### Generate New Secrets
+```bash
+# Generate random secret
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
+# Or use openssl
+openssl rand -base64 32
+```
+
+## 📦 Registry Operations
+
+### List Images
+```bash
 curl http://vts-worker-01-stg-srv:30500/v2/_catalog
 ```
 
-### Ingress Not Working
-
+### List Tags
 ```bash
-# Check ingress controller
-kubectl get pods -n ingress-nginx
-
-# Check ingress resource
-kubectl describe ingress strapi-ingress -n strapi-staging
-
-# Verify nginx ingress logs
-kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller
+curl http://vts-worker-01-stg-srv:30500/v2/strapi/tags/list
 ```
 
-## 📈 Next Steps & Production Readiness
-
-### For Your Development Team:
-
-1. **Show them the running instance**
-   - Admin panel: `http://<HAPROXY_IP>/admin`
-   - API docs: `http://<HAPROXY_IP>/documentation`
-
-2. **Gather requirements:**
-   - What content types do they need?
-   - What plugins are they using?
-   - What integrations exist?
-   - What's their workflow?
-
-3. **Plan migration:**
-   - Export their local schemas
-   - Document custom code
-   - List dependencies
-   - Plan data migration strategy
-
-### For Production Deployment:
-
-- [ ] Set up proper DNS and SSL certificates
-- [ ] Implement proper secrets management (Vault, Sealed Secrets)
-- [ ] Configure backup strategy for PostgreSQL
-- [ ] Set up monitoring (Prometheus/Grafana)
-- [ ] Configure logging aggregation (ELK/Loki)
-- [ ] Implement CI/CD pipeline (Azure DevOps)
-- [ ] Set up staging → production promotion
-- [ ] Configure resource quotas and limits
-- [ ] Implement network policies
-- [ ] Set up disaster recovery plan
-
-### DevSecOps Checklist:
-
-- [ ] Git repository with proper branching strategy
-- [ ] Automated testing in pipeline
-- [ ] Container vulnerability scanning
-- [ ] RBAC for K8s access
-- [ ] Audit logging enabled
-- [ ] Regular backup testing
-- [ ] Documentation for team
-- [ ] Runbooks for common issues
-- [ ] On-call rotation setup
-
-## 📝 Architecture Diagram
-
-```
-Internet/Internal Network
-         |
-         v
-    [HAProxy LB]
-         |
-    Port 80 → NodePort 30080
-         |
-         v
-  [Nginx Ingress Controller]
-         |
-    [Ingress Resource]
-         |
-    +----+----+
-    |         |
-    v         v
-[Strapi]  [Strapi]     ← 2 replicas, stateless
-(Pod 1)   (Pod 2)      ← Shared uploads via PVC
-    |         |
-    +----+----+
-         |
-         v
-  [Strapi Service]
-         |
-         v
-  [PostgreSQL StatefulSet]
-         |
-         v
-   [Ceph-RBD PVC]        ← 20Gi persistent storage
+### Registry Logs
+```bash
+kubectl logs -f -l app=docker-registry -n container-registry
 ```
 
-## 🎓 Resources
+## 🧹 Cleanup Commands
 
-- Strapi Documentation: https://docs.strapi.io
-- Kubernetes Best Practices: https://kubernetes.io/docs/concepts/
-- Rook-Ceph: https://rook.io/docs/
-- Nginx Ingress: https://kubernetes.github.io/ingress-nginx/
+### Remove Strapi (Keep Database)
+```bash
+kubectl delete deployment strapi -n strapi-staging
+kubectl delete svc strapi-service -n strapi-staging
+kubectl delete ingress strapi-ingress -n strapi-staging
+```
+
+### Complete Cleanup
+```bash
+# Delete everything in strapi-staging
+kubectl delete namespace strapi-staging
+
+# Delete registry (optional)
+kubectl delete namespace container-registry
+```
+
+### Clean Docker Images
+```bash
+# Remove local images
+docker rmi vts-worker-01-stg-srv:30500/strapi:latest
+
+# Clean build cache
+docker system prune -a
+```
+
+## 📝 File Locations
+
+```
+/opt/app/                          # Strapi root (in container)
+/opt/app/public/uploads/           # Uploaded media
+/opt/app/config/                   # Configuration files
+/var/lib/postgresql/data/pgdata/   # PostgreSQL data (in container)
+```
+
+## 🎯 Common Tasks
+
+### Add New Content Type
+1. Access admin panel
+2. Content-Type Builder → Create new content type
+3. Add fields
+4. Save
+5. (Deployment auto-restarts if needed)
+
+### Update Strapi Code
+```bash
+cd strapi-demo
+# Make your changes
+docker build -t vts-worker-01-stg-srv:30500/strapi:latest .
+docker push vts-worker-01-stg-srv:30500/strapi:latest
+kubectl rollout restart deployment/strapi -n strapi-staging
+```
+
+### Check Deployment Status
+```bash
+kubectl rollout status deployment/strapi -n strapi-staging
+```
+
+### View Deployment History
+```bash
+kubectl rollout history deployment/strapi -n strapi-staging
+```
+
+### Rollback Deployment
+```bash
+# Rollback to previous version
+kubectl rollout undo deployment/strapi -n strapi-staging
+
+# Rollback to specific revision
+kubectl rollout undo deployment/strapi -n strapi-staging --to-revision=2
+```
+
+## 🆘 Emergency Procedures
+
+### Database is Down
+```bash
+# Check status
+kubectl get pods -l app=postgres -n strapi-staging
+
+# View logs
+kubectl logs -f statefulset/postgres -n strapi-staging
+
+# Restart (last resort)
+kubectl delete pod postgres-0 -n strapi-staging
+```
+
+### Strapi Won't Respond
+```bash
+# Check health
+curl http://<HAPROXY_IP>/_health
+
+# View logs
+kubectl logs -f deployment/strapi -n strapi-staging
+
+# Force restart
+kubectl rollout restart deployment/strapi -n strapi-staging
+```
+
+### Out of Storage
+```bash
+# Check PVC usage
+kubectl exec -it deployment/strapi -n strapi-staging -- df -h
+
+# Expand PVC (if supported)
+kubectl patch pvc strapi-uploads-pvc -n strapi-staging \
+  -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+```
+
+---
