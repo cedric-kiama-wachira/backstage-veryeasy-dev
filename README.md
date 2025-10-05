@@ -395,29 +395,9 @@ Internet/Internal Network
    [Ceph-RBD PVC]        ← 20Gi persistent storage
 ```
 
-## 🎓 Learning Resources
+## 🎓 Resources
 
 - Strapi Documentation: https://docs.strapi.io
 - Kubernetes Best Practices: https://kubernetes.io/docs/concepts/
 - Rook-Ceph: https://rook.io/docs/
 - Nginx Ingress: https://kubernetes.github.io/ingress-nginx/
-
-## 💡 Tips for Success
-
-1. **Start Simple:** Get basic setup working first, then add complexity
-2. **Document Everything:** Your team will thank you
-3. **Test Backups:** Don't wait for disaster to test restores
-4. **Monitor Proactively:** Set up alerts before issues occur
-5. **Iterate:** Improve based on team feedback
-
-## 🆘 Support
-
-If you encounter issues:
-1. Check the troubleshooting section above
-2. Review pod logs: `kubectl logs -f <pod-name> -n strapi-staging`
-3. Check K8s events: `kubectl get events -n strapi-staging`
-4. Verify network connectivity between pods
-
----
-
-**Good luck with your deployment! You're building a solid foundation for your team's DevSecOps culture. 🚀**
